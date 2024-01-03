@@ -14,4 +14,6 @@ device_name = [
     'Lüftung', 
     'Boiler', 
     'Heizband']
+three_phase_devices = ['Heatpump',
+                       'Boiler']
 device_subpage = 'cm?cmnd=Status%208'

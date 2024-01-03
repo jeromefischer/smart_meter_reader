@@ -10,16 +10,16 @@ import requests
 from influxdb import InfluxDBClient
 import config
 
-logging.basicConfig(handlers=[RotatingFileHandler('./energy_meter.log',
+logging.basicConfig(handlers=[RotatingFileHandler('./smart_meter_reader/log/energy_meter.log',
                                                   maxBytes=100000, backupCount=10)],
-                    level=logging.DEBUG, 
+                    level=logging.DEBUG,
                     format='%(asctime)s - %(message)s',
                     datefmt='%d-%b-%y %H:%M:%S')
 
 
-def read_measurement_from_powermeter(ip_address, subpage=config.device_subpage):
+def read_measurement_from_powermeter(ip_address, device_name):
     # http://192.168.2.109/cm?cmnd=Status%208
-    r = requests.get(url=f"{ip_address}/{subpage}", timeout=3)
+    r = requests.get(url=f"{ip_address}/{config.device_subpage}", timeout=3)
     data = r.json()
 
     # print(data['StatusSNS']['ENERGY']['Yesterday'])
@@ -30,6 +30,10 @@ def read_measurement_from_powermeter(ip_address, subpage=config.device_subpage):
     # Remove all unused fields and sum the power, if it is a three phase measurement.
     if "Power" in data:
         if isinstance(data["Power"], list):
+            if device_name in config.three_phase_devices:
+                for phase, power in enumerate(data["Power"]):
+                    name = "Power_P" + str(phase+1)
+                    data[name] = power
             data["Power"] = sum(map(int, data["Power"]))
     if "Factor" in data:
         data.pop("Factor", None)
@@ -78,7 +82,7 @@ def write_to_influx(json_body):
 
 try:
     for num, ip in enumerate(config.device_ip):
-        data_as_json = read_measurement_from_powermeter(ip_address=ip)
+        data_as_json = read_measurement_from_powermeter(ip_address=ip, device_name=config.device_name[num])
         logging.info("Device Name: %s\t data: %s", config.device_name[num], data_as_json)
         json_body = generate_json(data_as_json=data_as_json, device_name=config.device_name[num])
         success = write_to_influx(json_body=json_body)
